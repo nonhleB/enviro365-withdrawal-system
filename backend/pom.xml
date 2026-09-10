@@ -12,7 +12,7 @@
     </parent>
 
     <groupId>com.enviro.assessment</groupId>
-    <artifactId>junior-yourname</artifactId>
+    <artifactId>junior-nonhle</artifactId>
     <version>1.0.0</version>
     <name>enviro365-withdrawal-system</name>
     <description>Enviro365 Investments - Withdrawal Notice System (Junior Developer Assessment)</description>
