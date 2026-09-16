@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import InvestorSelector from './components/InvestorSelector';
 import PortfolioDashboard from './components/PortfolioDashboard';
 import WithdrawalForm from './components/WithdrawalForm';
+import WithdrawalHistory from './components/WithdrawalHistory';
 import { getPortfolios } from './services/api';
 import './App.css';
 
@@ -11,6 +12,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedPortfolio, setSelectedPortfolio] = useState(null);
+  const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
 
   const loadPortfolios = useCallback(async () => {
     setLoading(true);
@@ -32,6 +34,11 @@ export default function App() {
     loadPortfolios();
   }, [loadPortfolios]);
 
+  const handleWithdrawalCreated = () => {
+    loadPortfolios();
+    setHistoryRefreshKey((k) => k + 1);
+  };
+
   return (
     <div className="app">
       <header className="app__header">
@@ -43,19 +50,27 @@ export default function App() {
       </header>
 
       <main className="app__main">
-        <section>
-          <h2>Portfolio dashboard</h2>
-          <PortfolioDashboard
-            portfolios={portfolios}
-            loading={loading}
-            error={error}
-            onSelectPortfolio={setSelectedPortfolio}
-            selectedPortfolioId={selectedPortfolio?.portfolioId}
+        <div className="app__main-left">
+          <section>
+            <h2>Portfolio dashboard</h2>
+            <PortfolioDashboard
+              portfolios={portfolios}
+              loading={loading}
+              error={error}
+              onSelectPortfolio={setSelectedPortfolio}
+              selectedPortfolioId={selectedPortfolio?.portfolioId}
+            />
+          </section>
+
+          <WithdrawalHistory
+            portfolio={selectedPortfolio}
+            investorId={investorId}
+            refreshKey={historyRefreshKey}
           />
-        </section>
+        </div>
 
         <section>
-          <WithdrawalForm portfolio={selectedPortfolio} onWithdrawalCreated={loadPortfolios} />
+          <WithdrawalForm portfolio={selectedPortfolio} onWithdrawalCreated={handleWithdrawalCreated} />
         </section>
       </main>
     </div>

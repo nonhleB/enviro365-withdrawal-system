@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { createWithdrawal } from '../services/api';
 
 const currency = (value) =>
@@ -6,9 +6,35 @@ const currency = (value) =>
 
 export default function WithdrawalForm({ portfolio, onWithdrawalCreated }) {
   const [amount, setAmount] = useState('');
+  const [touched, setTouched] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [error, setError] = useState(null);
+  const [serverError, setServerError] = useState(null);
   const [success, setSuccess] = useState(null);
+
+  const maxAllowed = portfolio ? portfolio.balance * 0.9 : 0;
+  const isRetirementLocked =
+    portfolio?.productType === 'RETIREMENT_ANNUITY' && portfolio.investorAge <= 65;
+
+  // UI validation: computed on every render so the button and inline hint
+  // stay in sync as the person types, rather than only checking on submit.
+  const validationError = useMemo(() => {
+    if (isRetirementLocked) {
+      return `Retirement withdrawals unlock at age 66 (currently ${portfolio?.investorAge}).`;
+    }
+    if (amount === '') {
+      return null; // don't show "required" until they've interacted with the field
+    }
+    const numeric = Number(amount);
+    if (Number.isNaN(numeric) || numeric <= 0) {
+      return 'Amount must be greater than zero.';
+    }
+    if (numeric > maxAllowed) {
+      return `Amount exceeds the 90% limit of ${currency(maxAllowed)}.`;
+    }
+    return null;
+  }, [amount, maxAllowed, isRetirementLocked, portfolio]);
+
+  const canSubmit = portfolio && amount !== '' && !validationError && !submitting;
 
   if (!portfolio) {
     return (
@@ -18,31 +44,23 @@ export default function WithdrawalForm({ portfolio, onWithdrawalCreated }) {
     );
   }
 
-  const maxAllowed = portfolio.balance * 0.9;
-
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError(null);
+    setTouched(true);
+    setServerError(null);
     setSuccess(null);
 
-    const numericAmount = Number(amount);
-
-    // Client-side check purely for immediate feedback - the backend re-runs
-    // the full business rule validation regardless (never trust the client).
-    if (!amount || numericAmount <= 0) {
-      setError('Enter an amount greater than zero.');
-      return;
-    }
+    if (!canSubmit) return;
 
     setSubmitting(true);
     try {
-      const result = await createWithdrawal(portfolio.portfolioId, numericAmount);
+      const result = await createWithdrawal(portfolio.portfolioId, Number(amount));
       setSuccess(result);
       setAmount('');
+      setTouched(false);
       onWithdrawalCreated?.(result);
     } catch (err) {
-      const message = err.response?.data?.message || 'Something went wrong. Please try again.';
-      setError(message);
+      setServerError(err.response?.data?.message || 'Something went wrong. Please try again.');
     } finally {
       setSubmitting(false);
     }
@@ -63,15 +81,23 @@ export default function WithdrawalForm({ portfolio, onWithdrawalCreated }) {
         step="0.01"
         value={amount}
         onChange={(e) => setAmount(e.target.value)}
+        onBlur={() => setTouched(true)}
         placeholder="0.00"
-        disabled={submitting}
+        disabled={submitting || isRetirementLocked}
+        aria-invalid={Boolean(touched && validationError)}
       />
 
-      <button type="submit" disabled={submitting}>
+      {touched && validationError && (
+        <p className="withdrawal-form__message withdrawal-form__message--error">{validationError}</p>
+      )}
+
+      <button type="submit" disabled={!canSubmit}>
         {submitting ? 'Submitting…' : 'Submit withdrawal'}
       </button>
 
-      {error && <p className="withdrawal-form__message withdrawal-form__message--error">{error}</p>}
+      {serverError && (
+        <p className="withdrawal-form__message withdrawal-form__message--error">{serverError}</p>
+      )}
       {success && (
         <p className="withdrawal-form__message withdrawal-form__message--success">
           Approved. New balance: {currency(success.resultingBalance)}
